@@ -84,7 +84,7 @@ RUN case "$TARGETARCH" in \
       *)     ZJS_ZIP="zwave-js-ui-v${ZWAVE_JS_UI_VERSION}-linux.zip" ;; \
     esac && \
     mkdir -p /opt/zwave-js-ui && \
-    wget -q -O /tmp/zwave-js-ui.zip "https://github.com/zwave-js/zwave-js-ui/releases/download/v${ZWAVE_JS_UI_VERSION}/${ZJS_ZIP}" && \
+    wget -q --tries=5 --timeout=60 --retry-connrefused -O /tmp/zwave-js-ui.zip "https://github.com/zwave-js/zwave-js-ui/releases/download/v${ZWAVE_JS_UI_VERSION}/${ZJS_ZIP}" && \
     unzip -q /tmp/zwave-js-ui.zip -d /tmp/zwave-js-ui && \
     find /tmp/zwave-js-ui -maxdepth 1 -type f -name 'zwave-js-ui*' -exec mv {} /opt/zwave-js-ui/zwave-js-ui \; && \
     chmod a+x /opt/zwave-js-ui/zwave-js-ui && \
@@ -93,7 +93,7 @@ ENV ZWAVE_JS_UI_VERSION="$ZWAVE_JS_UI_VERSION"
 
 # download the HomeSeer Linux application archive
 # (extracted into the /homeseer volume at container startup)
-RUN wget -q -O /homeseer.tar.gz "$DOWNLOAD"
+RUN wget -q --tries=5 --timeout=60 --retry-connrefused -O /homeseer.tar.gz "$DOWNLOAD"
 
 # define IP ports to be exposed by this container
 # 80    : HTTP/WEB
