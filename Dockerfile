@@ -17,7 +17,6 @@ STOPSIGNAL SIGQUIT
 ENV LANG="en_US.UTF-8" \
     TZ="America/New_York" \
     HOMESEER_FOLDER="/homeseer" \
-    HOMESEER_CREDENTIALS="" \
     HOMESEER_VERSION="$VERSION"
 
 # docker container image labels
