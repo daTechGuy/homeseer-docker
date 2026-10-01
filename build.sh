@@ -39,6 +39,9 @@ build () {
   echo "**********************************************************************"
   echo
 
+  # download the HomeSeer archive into the build context
+  curl -fsSL --retry 10 --retry-all-errors --retry-delay 15 -o downloads/homeseer.tar.gz "$DOWNLOAD"
+
   docker buildx build \
     --build-arg BUILDDATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
     --build-arg VERSION="$VERSION"   \

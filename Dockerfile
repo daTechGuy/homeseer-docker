@@ -91,9 +91,17 @@ RUN case "$TARGETARCH" in \
     rm -rf /tmp/zwave-js-ui /tmp/zwave-js-ui.zip
 ENV ZWAVE_JS_UI_VERSION="$ZWAVE_JS_UI_VERSION"
 
-# download the HomeSeer Linux application archive
+# add the HomeSeer Linux application archive
 # (extracted into the /homeseer volume at container startup)
-RUN wget -q --tries=5 --timeout=60 --retry-connrefused -O /homeseer.tar.gz "$DOWNLOAD"
+# uses 'downloads/homeseer.tar.gz' from the build context when present (pre-downloaded by
+# the CI workflow / build.sh); otherwise downloads it here
+COPY downloads/ /tmp/downloads/
+RUN if [ -f /tmp/downloads/homeseer.tar.gz ]; then \
+      mv /tmp/downloads/homeseer.tar.gz /homeseer.tar.gz; \
+    else \
+      wget -q --tries=5 --timeout=60 --retry-connrefused -O /homeseer.tar.gz "$DOWNLOAD"; \
+    fi && \
+    rm -rf /tmp/downloads
 
 # define IP ports to be exposed by this container
 # 80    : HTTP/WEB

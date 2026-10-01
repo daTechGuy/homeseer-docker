@@ -35,6 +35,14 @@ jobs:
           echo "builddate=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
           echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/homeseer" >> "$GITHUB_OUTPUT"
 
+      # download once on the runner (with retries) instead of inside the per-platform build
+      - name: Download HomeSeer archive
+        run: |
+          curl -fsSL --retry 10 --retry-all-errors --retry-delay 15 --connect-timeout 30 --max-time 600 \
+               -o downloads/homeseer.tar.gz "${{ steps.version.outputs.download }}"
+          gzip -t downloads/homeseer.tar.gz
+          ls -la downloads
+
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
