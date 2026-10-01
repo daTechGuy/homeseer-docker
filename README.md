@@ -74,6 +74,22 @@ When the container is stopped, HomeSeer is asked to shut down cleanly (the same 
 | `HOMESEER_CREDENTIALS` | | `user:password`; only needed if HomeSeer requires a login for local (localhost) connections, so the container can request a clean shutdown |
 | `HOMESEER_FORCE_INSTALL` | `false` | Re-extract the bundled HomeSeer version on start |
 | `HOMESEER_SHUTDOWN_TIMEOUT` | `60` | Seconds to wait for HomeSeer to shut down before it is killed |
+| `ZWAVE_JS_UI` | `false` | `true` runs the bundled Z-Wave JS UI for the Z-Wave Plus plugin (see below) |
+| `ZWAVE_JS_UI_PORT` | `8091` | Z-Wave JS UI web port |
+| `ZWAVE_JS_UI_STORE` | `/homeseer/zwave-js-ui` | Z-Wave JS UI data (settings, network keys, logs) |
+
+### Z-Wave Plus plugin (Z-Wave JS)
+
+HomeSeer's **Z-Wave Plus** plugin needs Z-Wave JS UI. On Linux the plugin tries to install it by running
+`sudo docker` itself, which can't work inside this container. Instead, the image bundles Z-Wave JS UI
+(the same version the plugin pins) and runs it next to HomeSeer when `ZWAVE_JS_UI=true`:
+
+1. Start the container with `ZWAVE_JS_UI=true`.
+2. Open Z-Wave JS UI at `http://<container-ip>:8091/` → *Settings → Z-Wave*, set the **Serial Port** to your
+   controller (a Z-NET is `tcp://<z-net-ip>:2001`; a USB stick is the mapped device, e.g. `/dev/ttyUSB0`),
+   enter your security keys, and save.
+3. In HomeSeer, *Plugins → Z-Wave Plus → Manage Networks*, add the network as **External** with IP
+   `127.0.0.1`, UI port `8091` and WebSocket port `3000`.
 
 ### Ports
 

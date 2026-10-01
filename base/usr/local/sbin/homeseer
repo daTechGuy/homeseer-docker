@@ -123,6 +123,66 @@ function initialize_homeseer {
 }
 
 # -------------------------------------------------------------------------
+# START Z-WAVE JS UI
+# -------------------------------------------------------------------------
+# when ZWAVE_JS_UI=true, run the bundled Z-Wave JS UI alongside HomeSeer;
+# the HomeSeer "Z-Wave Plus" plugin connects to it in "External" mode
+# (IP 127.0.0.1, UI port 8091, WebSocket port 3000). It is restarted if it exits.
+# -------------------------------------------------------------------------
+function start_zwave_js_ui {
+
+  [[ "${ZWAVE_JS_UI,,}" == "true" ]] || return 0
+
+  echo
+  echo "**********************************************************************"
+  echo " HOMESEER CONTAINER - STARTING Z-WAVE JS UI ($ZWAVE_JS_UI_VERSION)"
+  echo "**********************************************************************"
+  echo
+
+  export STORE_DIR="${ZWAVE_JS_UI_STORE:-/homeseer/zwave-js-ui}"
+  export ZWAVEJS_EXTERNAL_CONFIG="$STORE_DIR/.config-db"
+  export PORT="${ZWAVE_JS_UI_PORT:-8091}"
+  mkdir -p "$STORE_DIR"
+
+  # supervise Z-Wave JS UI in the background; console output goes to a log file in the store
+  (
+    trap 'kill -TERM $ZJS_PID 2>/dev/null; wait $ZJS_PID; exit 0' TERM
+    while true
+    do
+      cd "$STORE_DIR"
+      /opt/zwave-js-ui/zwave-js-ui >> "$STORE_DIR/console.log" 2>&1 &
+      ZJS_PID=$!
+      wait $ZJS_PID && RC=0 || RC=$?
+      echo "$(date) Z-Wave JS UI exited with code $RC; restarting in 5 seconds" >> "$STORE_DIR/console.log"
+      sleep 5
+    done
+  ) &
+  ZWAVE_JS_UI_PID=$!
+  echo " -> Z-Wave JS UI started in background (UI port $PORT, store $STORE_DIR)"
+}
+
+# -------------------------------------------------------------------------
+# STOP Z-WAVE JS UI
+# -------------------------------------------------------------------------
+function stop_zwave_js_ui {
+
+  [[ -n "$ZWAVE_JS_UI_PID" ]] || return 0
+
+  echo
+  echo "**********************************************************************"
+  echo " HOMESEER CONTAINER - STOPPING Z-WAVE JS UI"
+  echo "**********************************************************************"
+  echo
+  kill -TERM "$ZWAVE_JS_UI_PID" 2>/dev/null || true
+  for (( t=0; t<20; t+=1 ))
+  do
+      kill -0 "$ZWAVE_JS_UI_PID" 2>/dev/null || break
+      sleep 1
+  done
+  ZWAVE_JS_UI_PID=""
+}
+
+# -------------------------------------------------------------------------
 # START (OR RESTART) HOMESEER
 # -------------------------------------------------------------------------
 function start_homeseer {
@@ -238,6 +298,9 @@ function stop_homeseer {
 # -------------------------------------------------------------------------
 function exit_homeseer {
 
+  # stop Z-Wave JS UI (after HomeSeer, so the plugin shuts down first)
+  stop_zwave_js_ui;
+
   echo
   echo "**********************************************************************"
   echo " HOMESEER CONTAINER - STOPPING AVAHI DAEMON"
@@ -321,6 +384,9 @@ ps -A | grep homeseer || true
 # 'initialize' will setup the system timezone and start the DBUS and AVAHI daemon
 # (initialization only occurs one time at container startup)
 initialize_homeseer;
+
+# start Z-Wave JS UI (if enabled) before HomeSeer so the Z-Wave Plus plugin can connect
+start_zwave_js_ui;
 
 # initial runtime counter value
 RunCounter=0;

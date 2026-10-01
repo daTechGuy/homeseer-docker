@@ -43,7 +43,7 @@ RUN apt-get update && \
 # (chromium is omitted; HomeSeer only needs it on graphical desktop systems)
 RUN apt-get update && \
     apt-get install --yes locales tzdata procps psmisc iproute2 net-tools iputils-ping \
-                          tmux wget nano etherwake openssh-client mosquitto-clients dos2unix \
+                          tmux wget nano etherwake openssh-client mosquitto-clients dos2unix unzip \
                           aha ffmpeg alsa-utils flite \
                           dbus avahi-daemon avahi-utils avahi-discover libavahi-compat-libdnssd-dev libnss-mdns mdns-scan \
                           mono-complete mono-vbnc mono-xsp4 && \
@@ -75,6 +75,21 @@ COPY base/etc/avahi/avahi-daemon.conf /etc/avahi/avahi-daemon.conf
 RUN mkdir -p /var/run/dbus /var/run/avahi-daemon && \
     chown messagebus:messagebus /var/run/dbus && \
     chown avahi:avahi /var/run/avahi-daemon
+
+# install Z-Wave JS UI (standalone binary) for the HomeSeer "Z-Wave Plus" plugin
+# (only started when ZWAVE_JS_UI=true; the plugin connects to it in "External" mode)
+ARG ZWAVE_JS_UI_VERSION=11.21.1
+RUN case "$TARGETARCH" in \
+      arm64) ZJS_ZIP="zwave-js-ui-v${ZWAVE_JS_UI_VERSION}-linux-arm64.zip" ;; \
+      *)     ZJS_ZIP="zwave-js-ui-v${ZWAVE_JS_UI_VERSION}-linux.zip" ;; \
+    esac && \
+    mkdir -p /opt/zwave-js-ui && \
+    wget -q -O /tmp/zwave-js-ui.zip "https://github.com/zwave-js/zwave-js-ui/releases/download/v${ZWAVE_JS_UI_VERSION}/${ZJS_ZIP}" && \
+    unzip -q /tmp/zwave-js-ui.zip -d /tmp/zwave-js-ui && \
+    find /tmp/zwave-js-ui -maxdepth 1 -type f -name 'zwave-js-ui*' -exec mv {} /opt/zwave-js-ui/zwave-js-ui \; && \
+    chmod a+x /opt/zwave-js-ui/zwave-js-ui && \
+    rm -rf /tmp/zwave-js-ui /tmp/zwave-js-ui.zip
+ENV ZWAVE_JS_UI_VERSION="$ZWAVE_JS_UI_VERSION"
 
 # download the HomeSeer Linux application archive
 # (extracted into the /homeseer volume at container startup)
