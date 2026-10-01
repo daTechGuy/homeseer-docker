@@ -23,9 +23,6 @@ function install_homeseer {
   echo "Installing HomeSeer application files; please wait ..."
   tar --strip-components=1 -xzvf /homeseer.tar.gz -C /homeseer
 
-  # write a flagging file to denote that we have installed the HomeSeer application in this container
-  touch /homeseer-installed
-
   # remove unnecessary files from the HomeSeer application directory
   rm -f /homeseer/hs_sentry.log
 
@@ -54,7 +51,7 @@ function initialize_homeseer {
   echo " HOMESEER CONTAINER - IP ADDRESS"
   echo "**********************************************************************"
   echo
-  ifconfig eth0
+  ip -brief address || true
 
   echo
   echo "**********************************************************************"
@@ -193,42 +190,41 @@ function stop_homeseer {
   echo " HOMESEER CONTAINER - STOPPING HOMESEER PROCESS"
   echo "**********************************************************************"
   echo
-  CURL_ERROR=0;
+  SHUTDOWN_TIMEOUT="${HOMESEER_SHUTDOWN_TIMEOUT:-60}"
 
-  # extract web server port from settings.ini
-  HOMESEER_PORT=$(awk -F= '\
-  {
-      gsub("\015", "") # remove CR character
-      if ($1 == "gWebSvrPort") print $2
-  }
-  ' /homeseer/Config/settings.ini)
+  # extract web server port from settings.ini (default to port 80)
+  HOMESEER_PORT=$(awk -F= '{ gsub("\015", ""); if ($1 == "gWebSvrPort") print $2 }' /homeseer/Config/settings.ini 2>/dev/null || true)
+  HOMESEER_PORT="${HOMESEER_PORT:-80}"
 
-  # send application shutdown command (attempt the API call up to 5 times)
+  # request a clean application shutdown the same way the web UI does ("Tools > System > Shutdown");
+  # the HomeSeer web server replies without standard HTTP headers, so allow HTTP/0.9 responses
+  # (attempt the call up to 5 times)
   for i in $(seq 1 5)
   do
-      echo "--> CALLING SHUTDOWN API ON HOMESEER SERVER PORT: $HOMESEER_PORT"
-      CURL_ERROR=0;
-      curl -f -s -o /dev/null ${HOMESEER_CREDENTIALS:+-u} $HOMESEER_CREDENTIALS --data 'ConfirmShutdownhs=Yes' "http://localhost:$HOMESEER_PORT/LinuxTools" || CURL_ERROR=$?;
-      test $CURL_ERROR -eq 0 && break
-      echo "--> [$i] SHUTDOWN API CALL FAILED WITH ERROR: $CURL_ERROR; RETRYING IN 2 SECONDS"
+      echo "--> CALLING SHUTDOWN ON HOMESEER WEB SERVER PORT: $HOMESEER_PORT"
+      curl -s --http0.9 -m 10 -o /dev/null ${HOMESEER_CREDENTIALS:+-u "$HOMESEER_CREDENTIALS"} \
+           --data 'action=shutdown_hs' "http://localhost:$HOMESEER_PORT/system.html" && break
+      echo "--> [$i] SHUTDOWN CALL FAILED; RETRYING IN 2 SECONDS"
       sleep 2
   done
 
-  # if the API call failed, the we should directly kill the homeseer mono process;
-  # this will result in an unclean termination but its the best we can do if the API call fails.
-  if [[ CURL_ERROR -ne 0 ]]; then
-    echo "--> UNABLE TO CALL SHUTDOWN API ON HOMESEER SERVER; KILLING HOMESEER PROCESS [$HOMESEER_PID]"
-    test -n "$HOMESEER_PID" && kill -0 $HOMESEER_PID && kill $HOMESEER_PID
-  fi;
-
   # wait until the homeseer mono process has been terminated
-  # (timeout after one minute of waiting)
-  for (( t=0; t<30; t+=2 ))
+  for (( t=0; t<SHUTDOWN_TIMEOUT; t+=2 ))
   do
-      pgrep -af mono.'*'\(HSConsole\|HomeSeer\) || break
-      echo "--> WAITING FOR HOMESEER TO SHUTDOWN";
+      kill -0 "$HOMESEER_PID" 2>/dev/null || break
+      echo "--> WAITING FOR HOMESEER TO SHUTDOWN ($t/$SHUTDOWN_TIMEOUT SECONDS)";
       sleep 2; # two seconds
   done
+
+  # if homeseer did not shut down in time, then directly kill the homeseer mono process;
+  # this will result in an unclean termination but it's the best we can do.
+  if kill -0 "$HOMESEER_PID" 2>/dev/null; then
+    echo "--> HOMESEER DID NOT SHUTDOWN WITHIN $SHUTDOWN_TIMEOUT SECONDS; KILLING HOMESEER PROCESS [$HOMESEER_PID]"
+    kill "$HOMESEER_PID" 2>/dev/null || true
+    sleep 2
+  else
+    echo "--> HOMESEER SHUTDOWN COMPLETE."
+  fi
 
   # with homeseer mono process terminated; we are ready to clean up and exit
   exit_homeseer;
@@ -282,16 +278,37 @@ echo
 echo "PRESS CTRL-C TO SHUTDOWN; OR USE 'docker stop homeseer' COMMAND."
 echo
 
-# install HomeSeer if not already installed by this container instance
-# (the "/homeseer-installed" file is written after installation)
-if [[ ! -f "/homeseer-installed" ]] && [ ! -f "/homeseer/no-install" ]; then
-  echo "Homeseer is not installed in this container; install it now."
-  # 'install' will overwrite the "/homeseer" directory contents with
-  # application files from the embedded archive file included in this
-  # container at ('/homeseer.tar.gz')
+# determine the HomeSeer version already installed in the "/homeseer" volume (if any)
+# (read from the HSConsole.exe assembly so that in-app HomeSeer updates are detected)
+INSTALLED_VERSION=""
+if [[ -f "/homeseer/HSConsole.exe" ]]; then
+  INSTALLED_VERSION=$(monodis --assembly /homeseer/HSConsole.exe 2>/dev/null | awk '/^Version:/ {print $2}' || true)
+  INSTALLED_VERSION="${INSTALLED_VERSION:-unknown}"
+fi
+echo "HomeSeer version bundled in image : ${HOMESEER_VERSION}"
+echo "HomeSeer version installed        : ${INSTALLED_VERSION:-none}"
+
+# install HomeSeer when:
+#  - it is not yet installed in the "/homeseer" volume, or
+#  - this image bundles a newer version than the one installed, or
+#  - HOMESEER_FORCE_INSTALL=true
+# never install over the volume when a "/homeseer/no-install" file exists; and never
+# downgrade a HomeSeer installation that has been updated from within the application
+if [[ -f "/homeseer/no-install" ]]; then
+  echo "Found '/homeseer/no-install'; skipping HomeSeer installation."
+elif [[ -z "$INSTALLED_VERSION" ]]; then
+  echo "HomeSeer is not installed; install it now."
+  install_homeseer;
+elif [[ "${HOMESEER_FORCE_INSTALL,,}" == "true" ]]; then
+  echo "HOMESEER_FORCE_INSTALL is set; re-installing HomeSeer."
+  install_homeseer;
+elif [[ "$INSTALLED_VERSION" != "unknown" ]] && \
+     [[ "$INSTALLED_VERSION" != "$HOMESEER_VERSION" ]] && \
+     [[ "$(printf '%s\n%s\n' "$INSTALLED_VERSION" "$HOMESEER_VERSION" | sort -V | tail -n1)" == "$HOMESEER_VERSION" ]]; then
+  echo "This image bundles a newer HomeSeer version; upgrading now."
   install_homeseer;
 else
-  echo "Homeseer is already installed in this container."
+  echo "HomeSeer is already installed and up to date."
 fi
 
 echo
@@ -299,7 +316,7 @@ echo "**********************************************************************"
 echo " HOMESEER CONTAINER - INITIALIZE"
 echo "**********************************************************************"
 echo
-ps -A | grep homeseer
+ps -A | grep homeseer || true
 
 # 'initialize' will setup the system timezone and start the DBUS and AVAHI daemon
 # (initialization only occurs one time at container startup)

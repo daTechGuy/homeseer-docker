@@ -15,8 +15,6 @@
 # --------------------------------------------------
 #    (Developed with ♥ by SavageSoftware, LLC.)
 # --------------------------------------------------
-version: '3.8'
-
 volumes:
   homeseer-data:
     name: homeseer-data
@@ -24,9 +22,10 @@ volumes:
 services:
   homeseer:
     container_name: homeseer
-    image: homeseer/homeseer:latest
+    image: ghcr.io/datechguy/homeseer:latest
     hostname: homeseer
     restart: unless-stopped
+    stop_grace_period: 90s
     network_mode: bridge
     ports:
       - 80:80

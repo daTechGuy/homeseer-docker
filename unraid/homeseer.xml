@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>HomeSeer</Name>
+  <Repository>ghcr.io/datechguy/homeseer:latest</Repository>
+  <Registry>https://github.com/daTechGuy/homeseer-docker/pkgs/container/homeseer</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/daTechGuy/homeseer-docker/issues</Support>
+  <Project>https://github.com/daTechGuy/homeseer-docker</Project>
+  <Overview>HomeSeer 4 home automation server (Linux / Mono). Not supported, sponsored or affiliated with HomeSeer Technologies.&#xD;
+&#xD;
+HomeSeer is installed into the appdata folder on first start and can update itself from within the HomeSeer UI; updating or recreating this container never downgrades an existing install.&#xD;
+&#xD;
+Tip: use a custom network (br0) with a dedicated IP so HomeSeer gets port 80 and LAN discovery (mDNS, Z-NET, HS-Touch) works.</Overview>
+  <Category>HomeAutomation:</Category>
+  <WebUI>http://[IP]:[PORT:80]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/daTechGuy/homeseer-docker/main/unraid/homeseer.xml</TemplateURL>
+  <Icon/>
+  <ExtraParams>--hostname=homeseer --stop-timeout=90</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="AppData" Target="/homeseer" Default="/mnt/user/appdata/homeseer" Mode="rw" Description="HomeSeer application, configuration, data, logs and backups." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/homeseer</Config>
+  <Config Name="Web UI (HTTP)" Target="80" Default="8080" Mode="tcp" Description="HomeSeer web interface. (Unraid's own web UI normally uses port 80 on the host.)" Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="HS-Touch" Target="10200" Default="10200" Mode="tcp" Description="HS-Touch clients." Type="Port" Display="always" Required="false" Mask="false">10200</Config>
+  <Config Name="myHS" Target="10300" Default="10300" Mode="tcp" Description="myHS remote access service." Type="Port" Display="always" Required="false" Mask="false">10300</Config>
+  <Config Name="Speaker Clients" Target="10401" Default="10401" Mode="tcp" Description="HomeSeer speaker clients." Type="Port" Display="always" Required="false" Mask="false">10401</Config>
+  <Config Name="ASCII/JSON API" Target="11000" Default="11000" Mode="tcp" Description="ASCII / JSON remote API." Type="Port" Display="advanced" Required="false" Mask="false">11000</Config>
+  <Config Name="Time Zone" Target="TZ" Default="America/New_York" Mode="" Description="Container time zone (e.g. America/New_York)." Type="Variable" Display="always" Required="true" Mask="false">America/New_York</Config>
+  <Config Name="Language" Target="LANG" Default="en_US.UTF-8" Mode="" Description="Container locale." Type="Variable" Display="advanced" Required="false" Mask="false">en_US.UTF-8</Config>
+  <Config Name="Local Credentials" Target="HOMESEER_CREDENTIALS" Default="" Mode="" Description="Only needed if HomeSeer requires a login for local (localhost) connections: 'user:password'. Used to shut HomeSeer down cleanly when the container stops." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="Force Reinstall" Target="HOMESEER_FORCE_INSTALL" Default="false" Mode="" Description="Set to 'true' to re-extract the bundled HomeSeer version over the appdata folder on next start (your config and data are kept). Set back to 'false' afterwards." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+  <Config Name="Z-Wave / Serial Device" Target="/dev/ttyUSB0" Default="" Mode="" Description="Optional USB serial device (Z-Wave/Zigbee stick). Use host:container form for a stable path, e.g. /dev/serial/by-id/usb-XXXX:/dev/ttyUSB0. Leave blank if not used." Type="Device" Display="always" Required="false" Mask="false"/>
+</Container>

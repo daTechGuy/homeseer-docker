@@ -15,8 +15,8 @@ docker run \
        --publish 11000:11000 \
        --env TZ=America/New_York \
        --env LANG=en_US.UTF-8 \
-       --env HOMESEER_CREDENTIALS="default:default" \
-       homeseer/homeseer:latest $@
+       --stop-timeout 90 \
+       ghcr.io/datechguy/homeseer:latest $@
 
 # PUBLISHED IP PORTS
 # -------------------------

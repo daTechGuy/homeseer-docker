@@ -1,9 +1,8 @@
-[![Docker](https://img.shields.io/docker/v/homeseer/homeseer/latest?color=darkgreen&logo=docker&label=DockerHub%20Latest%20Image)](https://hub.docker.com/repository/docker/homeseer/homeseer/)
-[![Docker](https://img.shields.io/docker/v/homeseer/homeseer/beta?color=red&logo=docker&label=DockerHub%20Beta%20Image)](https://hub.docker.com/repository/docker/homeseer/homeseer/)
+[![Build & Publish Images](https://github.com/daTechGuy/homeseer-docker/actions/workflows/build.yml/badge.svg)](https://github.com/daTechGuy/homeseer-docker/actions/workflows/build.yml)
 
 # Docker Container for HomeSeer 4 (Linux)
 
-(Developed with ♥ by SavageSoftware, LLC.)
+(Originally developed with ♥ by SavageSoftware, LLC.)
 
 ## Disclaimers
 
@@ -14,12 +13,16 @@
 
 ## Overview
 
-This project provides Docker container images for HomeSeer 4 on Linux.     
+This project provides Docker container images for HomeSeer 4 on Linux, built on Debian 12 (bookworm)
+with Mono 6.12.
 
-The docker images are published via Docker Hub:
- - [https://hub.docker.com/repository/docker/homeseer/homeseer](https://hub.docker.com/repository/docker/homeseer/homeseer)
- - [![Docker](https://img.shields.io/docker/v/homeseer/homeseer/latest?label=DockerHub%20Latest%20Image&logo=docker&style=social)](https://hub.docker.com/repository/docker/homeseer/homeseer/)
- - [![Docker](https://img.shields.io/docker/v/homeseer/homeseer/beta?label=DockerHub%20Beta%20Image&logo=docker&style=social)](https://hub.docker.com/repository/docker/homeseer/homeseer/)
+Images are published to the GitHub Container Registry:
+
+| Tag | HomeSeer version |
+|-----|------------------|
+| `ghcr.io/datechguy/homeseer:latest` | latest release (see [`versions.env`](versions.env)) |
+| `ghcr.io/datechguy/homeseer:beta`   | latest beta |
+| `ghcr.io/datechguy/homeseer:<version>` | a specific HomeSeer version, e.g. `4.2.24.0` |
 
 ---
 
@@ -27,10 +30,10 @@ The docker images are published via Docker Hub:
 
 Command to launch Docker container:
 ```
-docker run -it --name homeseer \       
+docker run -d --name homeseer --stop-timeout 90 \
        -p 80:80 -p 10200:10200 -p 10300:10300 -p 10401:10401 -p 11000:11000 \
        -v /etc/homeseer:/homeseer \
-       homeseer/homeseer:latest
+       ghcr.io/datechguy/homeseer:latest
 ```
 
 ---
@@ -42,93 +45,96 @@ docker run -it --name homeseer \
 
 ---
 
-## Getting Started 
+## How installs & upgrades work
 
-The following docker command will download and launch the latest HomeSeer 4 Docker image.
-```shell
-docker run \
-       --interactive \
-       --tty \
-       --name homeseer \
-       --volume /etc/homeseer:/homeseer \
-       --publish 80:80 \
-       --publish 10200:10200 \
-       --publish 10300:10300 \
-       --publish 10401:10401 \
-       --publish 11000:11000 \
-       --env TZ=America/New_York \
-       --env LANG=en_US.UTF-8 \
-       homeseer/homeseer:latest
-```
+On first start the container extracts the bundled HomeSeer application into the `/homeseer` volume.
+On every later start it compares the HomeSeer version installed in the volume with the version
+bundled in the image:
 
-On the first run of the `homeseer` container, the script will take a few minutes while it 
-installs the HomeSeer application files to the `/homeseer` mapped volume path.  Subsequent 
-container restarts will occur much faster as the HomeSeer application files are already 
-installed.  If the container is removed and a new container is launched, the HomeSeer
-application file will be re-installed even if they already exist in the `/homeseer` 
-mapped volume path.  Note: The installation process should not affect any user configuration, 
-plugins or log files.  However, it is always a good idea to make sure you have a complete backup 
-of the `/homeseer` mapped volume path prior to any upgrades.   
+| Situation | What happens |
+|-----------|--------------|
+| `/homeseer` is empty | HomeSeer is installed |
+| image bundles a **newer** version | HomeSeer is upgraded in place |
+| installed version is the same or **newer** (e.g. updated from the HomeSeer UI) | nothing; it is never downgraded |
+| `HOMESEER_FORCE_INSTALL=true` | the bundled version is re-extracted |
+| a `/homeseer/no-install` file exists | installation is always skipped |
+
+The HomeSeer archive does not contain your settings, devices, events or plugins, so installs/upgrades
+keep your configuration. It is still a good idea to back up the `/homeseer` volume before upgrading.
+
+When the container is stopped, HomeSeer is asked to shut down cleanly (the same as
+*Tools > System > Shutdown*) before the container exits.
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TZ` | `America/New_York` | Time zone |
+| `LANG` | `en_US.UTF-8` | Locale |
+| `HOMESEER_CREDENTIALS` | | `user:password`; only needed if HomeSeer requires a login for local (localhost) connections, so the container can request a clean shutdown |
+| `HOMESEER_FORCE_INSTALL` | `false` | Re-extract the bundled HomeSeer version on start |
+| `HOMESEER_SHUTDOWN_TIMEOUT` | `60` | Seconds to wait for HomeSeer to shut down before it is killed |
+
+### Ports
+
+| Port | Use |
+|------|-----|
+| 80    | HTTP / web UI |
+| 10200 | HS-Touch |
+| 10300 | myHS |
+| 10401 | Speaker clients |
+| 11000 | ASCII / JSON remote API |
+
+---
+
+## Unraid
+
+1. Open the Unraid terminal (the `>_` icon at the top right of the web UI) and download the template:
+   ```shell
+   wget -O /boot/config/plugins/dockerMan/templates-user/my-HomeSeer.xml \
+        https://raw.githubusercontent.com/daTechGuy/homeseer-docker/main/unraid/homeseer.xml
+   ```
+2. Go to **Docker**, click **Add Container**, and pick **HomeSeer** from the **Template** dropdown.
+3. Review the settings and click **Apply**. Open the web UI from the container's icon menu (**WebUI**).
+
+Notes:
+
+ - **Network:** the template defaults to `bridge` with the web UI on host port **8080**, because Unraid's own
+   web UI normally uses port 80. For the best experience, switch **Network Type** to a custom network
+   (e.g. `br0`) and give HomeSeer its own fixed IP; it then gets port 80 directly and LAN discovery
+   (mDNS, Z-NET, HS-Touch) works.
+ - **Appdata:** HomeSeer uses SQLite databases. Keep the `appdata` share on a pool/cache
+   (*Primary storage: Cache, Secondary: none*), or point the path at `/mnt/cache/appdata/homeseer`.
+ - **Z-Wave/Zigbee stick:** set the *Z-Wave / Serial Device* field using a stable path, e.g.
+   `/dev/serial/by-id/usb-XXXX:/dev/ttyUSB0`, then select `/dev/ttyUSB0` in the HomeSeer plugin.
+ - **Updating:** HomeSeer can update itself from its own UI, and that update is kept when Unraid updates or
+   recreates the container. Updating the container image only upgrades HomeSeer when the image is newer.
 
 ---
 
 ## Docker Compose
 
-Alternatively you can use a `docker-compose.yml` file to launch your homeseer container.
-Below is a sample `docker-compose.yml` file you can use to get started:
+See [`docker-compose.yml`](docker-compose.yml), then run `docker compose up -d` in the same directory.
 
-```yaml
-# --------------------------------------------------
-# HOMESEER LINUX SERVER
-# --------------------------------------------------
-# This container hosts the HomeSeer V4 server.
-# This config will create standalone 'homeseer-data'
-# docker volume to store all homeseer runtime
-# files. (logs, config, backups, app files)
-#
-# Disclaimers:
-# --------------
-# This docker container is not supported, sponsored
-# or directly affiliated with Homeseer
-# (https://homeseer.com).
-#
-# --------------------------------------------------
-#    (Developed with ♥ by SavageSoftware, LLC.)
-# --------------------------------------------------
-version: '3.8'
+---
 
-volumes:
-  homeseer-data:
-    name: homeseer-data
+## Building
 
-services:
-  homeseer:
-    container_name: homeseer
-    image: homeseer/homeseer:latest
-    hostname: homeseer
-    restart: unless-stopped
-    network_mode: bridge
-    ports:
-      - 80:80
-      - 10200:10200
-      - 10300:10300
-      - 10401:10401
-      - 11000:11000
-    environment:
-      TZ: America/New_York
-      LANG: en_US.UTF-8
-    volumes:
-      - homeseer-data:/homeseer
+The HomeSeer versions are defined in [`versions.env`](versions.env). Pushing a change to `main` makes
+GitHub Actions build multi-arch (`amd64`/`arm64`) images and push them to GHCR. Images are also rebuilt
+weekly to pick up Debian security updates.
+
+To build locally:
+```shell
+./build.sh            # build release + beta for the local platform
+./build.sh --push     # build multi-arch and push (requires 'docker login ghcr.io')
 ```
-
-
-Just run the `docker-compose up -d` command in the same directory as your `docker-compose.yml` 
-file to launch the container instance.
 
 ---
 
 ## Acknowledgments
 
+Forked from [HomeSeerLinux/homeseer-docker](https://github.com/HomeSeerLinux/homeseer-docker).
 Credit must be attributed to the following existing repositories and their respective authors.  Much of 
 the logic used in this project was based on these prior works. 
 

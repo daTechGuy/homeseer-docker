@@ -1,0 +1,13 @@
+#!/bin/bash
+
+############################################
+# HOMESEER (V4) LINUX - HEALTHCHECK SCRIPT
+############################################
+
+# extract web server port from settings.ini (default to port 80)
+HOMESEER_PORT=$(awk -F= '{ gsub("\015", ""); if ($1 == "gWebSvrPort") print $2 }' /homeseer/Config/settings.ini 2>/dev/null)
+HOMESEER_PORT="${HOMESEER_PORT:-80}"
+
+# the HomeSeer web server replies without standard HTTP headers (curl sees HTTP/0.9);
+# any response at all means the web server is up
+curl -s --http0.9 -o /dev/null -m 8 "http://localhost:$HOMESEER_PORT/" || exit 1
