@@ -99,16 +99,35 @@ When the container is stopped, HomeSeer is asked to shut down cleanly (the same 
 
 Notes:
 
- - **Network:** the template defaults to `bridge` with the web UI on host port **8080**, because Unraid's own
-   web UI normally uses port 80. For the best experience, switch **Network Type** to a custom network
-   (e.g. `br0`) and give HomeSeer its own fixed IP; it then gets port 80 directly and LAN discovery
-   (mDNS, Z-NET, HS-Touch) works.
+ - **Network:** the template uses the custom `br0` network so HomeSeer gets its own LAN IP. Fill in
+   **Fixed IP address** with an unused address outside your router's DHCP range. HomeSeer then answers on
+   port 80 of that IP and LAN discovery (mDNS, Z-NET, HS-Touch) works. Port mappings don't apply on `br0`.
+   If you'd rather use `bridge`, change the web UI port to e.g. 8080 (Unraid's own UI uses port 80).
+ - **Unraid host ↔ HomeSeer:** by default, Unraid itself can't reach containers on `br0` (other LAN devices
+   can). If you need that, enable *Settings > Docker > Host access to custom networks* (Docker must be stopped
+   to change it).
  - **Appdata:** HomeSeer uses SQLite databases. Keep the `appdata` share on a pool/cache
    (*Primary storage: Cache, Secondary: none*), or point the path at `/mnt/cache/appdata/homeseer`.
  - **Z-Wave/Zigbee stick:** set the *Z-Wave / Serial Device* field using a stable path, e.g.
    `/dev/serial/by-id/usb-XXXX:/dev/ttyUSB0`, then select `/dev/ttyUSB0` in the HomeSeer plugin.
  - **Updating:** HomeSeer can update itself from its own UI, and that update is kept when Unraid updates or
    recreates the container. Updating the container image only upgrades HomeSeer when the image is newer.
+
+### Migrating an existing HomeSeer install
+
+1. On the old system, make a backup (*Tools > Backup*) and note the HomeSeer version and plugins.
+2. Shut down the old HomeSeer, then copy its whole HomeSeer folder into the appdata path
+   (e.g. `/mnt/user/appdata/homeseer`), so that `HSConsole.exe`, `Config/`, `Data/`, plugins, scripts and
+   `html/` customizations sit at the top level of that folder.
+3. Start the container. If the copied HomeSeer is older than the image's version it is upgraded in place;
+   otherwise it is left as is.
+
+**Testing alongside a live system:** run the test container on a *copy* of the data, and in the test copy
+disable the Z-Wave interfaces (or the Z-Wave plugin) **before** starting it. A Z-NET only accepts one
+controlling connection, so a test instance can knock the live HomeSeer off it, and both instances would run
+the same events (lights, notifications). When you're ready, cut over: stop the old HomeSeer, copy its data
+again (fresh), re-enable Z-Wave and start the container. To fall back, stop the container and start the
+old system.
 
 ---
 
